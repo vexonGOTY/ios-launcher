@@ -26,7 +26,7 @@
 
 // since theos sdk apparently doesnt have this
 // thanks to https://github.com/theos/theos/issues/493
-int __isOSVersionAtLeast(int major, int minor, int patch) {
+__attribute__((weak)) int __isOSVersionAtLeast(int major, int minor, int patch) {
 	NSOperatingSystemVersion version;
 	version.majorVersion = major;
 	version.minorVersion = minor;
@@ -358,6 +358,10 @@ static NSString* invokeAppMain(NSString* selectedApp, NSString* selectedContaine
 	if (tweakFolder != nil) {
 		setenv("GC_GLOBAL_TWEAKS_FOLDER", tweakFolder.UTF8String, 1);
 
+		// waits 10 seconds before launching the game to allow lldb attach
+		if (![gcUserDefaults boolForKey:@"WAIT_DEBUGGER"]) {
+			setenv("GC_WAIT_DEBUGGER", "1", 1);
+		}
 		// Update TweakLoader symlink
 		NSString* tweakLoaderPath = [tweakFolder stringByAppendingPathComponent:@"TweakLoader.dylib"];
 		if (![fm fileExistsAtPath:tweakLoaderPath]) {
@@ -568,6 +572,7 @@ static NSString* invokeAppMain(NSString* selectedApp, NSString* selectedContaine
 	// hook NSUserDefault before running libraries' initializers
 	NUDGuestHooksInit();
 	SecItemGuestHooksInit();
+	AppLog(@"[invokeAppMain] Finished init guest hooks, now dlopen binary.");
 	// NSFMGuestHooksInit();
 	// initDead10ccFix();
 	//  UIAGuestHooksInit();
@@ -578,6 +583,7 @@ static NSString* invokeAppMain(NSString* selectedApp, NSString* selectedContaine
 
 	void* appHandle = dlopen(appExecPath, RTLD_LAZY | RTLD_GLOBAL | RTLD_FIRST);
 	appExecutableHandle = appHandle;
+	AppLog(@"[invokeAppMain] Opened binary handle.");
 	const char* dlerr = dlerror();
 
 	if (!appHandle || (uint64_t)appHandle > 0xf00000000000 || dlerr) {
@@ -590,6 +596,7 @@ static NSString* invokeAppMain(NSString* selectedApp, NSString* selectedContaine
 		*path = oldPath;
 		return appError;
 	}
+	AppLog(@"[invokeAppMain] No dlopen error");
 
 	// hook dlsym to solve RTLD_MAIN_ONLY
 	rebind_symbols((struct rebinding[1]){ { "dlsym", (void*)new_dlsym, (void**)&orig_dlsym } }, 1);
@@ -603,7 +610,7 @@ static NSString* invokeAppMain(NSString* selectedApp, NSString* selectedContaine
 		*path = oldPath;
 		return appError;
 	}
-	AppLog(@"[GeodeBootstrap] loaded bundle");
+	AppLog(@"[GeodeBootstrap] loaded bundle, now finding main entry point");
 
 	// Find main()
 	appMain = getAppEntryPoint(appHandle, appIndex);

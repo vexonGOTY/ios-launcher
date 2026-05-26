@@ -92,13 +92,21 @@
 
 - (void)countdownUpdate {
 	self.countdown--;
-	if (self.countdown < 0)
-		self.countdown = 0;
-	self.optionalTextLabel.text = [@"launcher.status.automatic-launch" localizeWithFormat:[NSString stringWithFormat:@"%ld", (long)self.countdown]];
-
-	if (self.countdown <= 0) {
+	if (self.countdown < 0) {
+		if (self.launchTimer != nil) {
+			[self.launchTimer invalidate];
+			self.launchTimer = nil;
+			[self.launchButton addTarget:self action:@selector(launchGame) forControlEvents:UIControlEventTouchUpInside];
+			[self.optionalTextLabel setHidden:YES];
+			self.launchButton.frame = CGRectMake(self.view.center.x - 95, CGRectGetMaxY(self.titleLabel.frame) + 15, 140, 45);
+			self.settingsButton.frame = CGRectMake(self.view.center.x + 50, CGRectGetMaxY(self.titleLabel.frame) + 15, 45, 45);
+		}
+	}
+	if (self.countdown == 0) {
 		self.optionalTextLabel.text = @"launcher.status.automatic-launch.end".loc;
 		[self launchGame];
+	} else if (self.countdown > 0) {
+		self.optionalTextLabel.text = [@"launcher.status.automatic-launch" localizeWithFormat:[NSString stringWithFormat:@"%ld", (long)self.countdown]];
 	}
 }
 
@@ -136,13 +144,12 @@
 			[self.optionalTextLabel setHidden:NO];
 			self.launchButton.frame = CGRectMake(self.view.center.x - 95, CGRectGetMaxY(self.optionalTextLabel.frame) + 15, 140, 45);
 			self.settingsButton.frame = CGRectMake(self.view.center.x + 50, CGRectGetMaxY(self.optionalTextLabel.frame) + 15, 45, 45);
-			self.countdown = 3;
+			self.countdown = 4;
 			[self countdownUpdate];
 			self.launchTimer = [NSTimer scheduledTimerWithTimeInterval:1.0 target:self selector:@selector(countdownUpdate) userInfo:nil repeats:YES];
 			[self.launchButton addTarget:self action:@selector(launchGame) forControlEvents:UIControlEventTouchUpInside];
-		} else {
-			[self.launchButton addTarget:self action:@selector(launchGame) forControlEvents:UIControlEventTouchUpInside];
 		}
+	    [self.launchButton addTarget:self action:@selector(launchGame) forControlEvents:UIControlEventTouchUpInside];
 	} else {
 		[self.optionalTextLabel setHidden:NO];
 		if (![VerifyInstall verifyGDAuthenticity] && ![VerifyInstall verifyGDInstalled]) {
@@ -211,7 +218,7 @@
 	[Utils increaseLaunchCount];
 
 	_icons = @[
-		@{ @"name" : @"Default", @"Logo" : @"geode_logo", @"iconName" : @"AppIcon" },
+		@{ @"name" : @"Default", @"Logo" : [Utils isSapphireDay] ? @"sapphire_logo" : @"geode_logo", @"iconName" : @"AppIcon" },
 		@{ @"name" : @"Geode", @"Logo" : @"new_geode_logo", @"iconName" : @"Geode" },
 		@{ @"name" : @"Pride", @"Logo" : @"pride_logo", @"iconName" : @"Pride" },
 		@{ @"name" : @"Lesbian", @"Logo" : @"lesbian_logo", @"iconName" : @"Lesbian" },
@@ -222,7 +229,8 @@
 		@{ @"name" : @"Nonbinary", @"Logo" : @"nonbinary_logo", @"iconName" : @"Nonbinary" },
 		@{ @"name" : @"Asexual", @"Logo" : @"asexual_logo", @"iconName" : @"Asexual" },
 		@{ @"name" : @"Genderfluid", @"Logo" : @"genderfluid_logo", @"iconName" : @"Genderfluid" },
-		@{ @"name" : @"Perfection.", @"Logo" : @"pride_logo", @"iconName" : @"Perfection" }
+		@{ @"name" : @"Perfection.", @"Logo" : @"pride_logo", @"iconName" : @"Perfection" },
+		@{ @"name" : @"Sapphire", @"Logo" : @"sapphire_logo", @"iconName" : @"Sapphire" }
 	];
 
 	self.impactFeedback = [[UIImpactFeedbackGenerator alloc] initWithStyle:UIImpactFeedbackStyleHeavy];
@@ -266,9 +274,8 @@
 	if (logoFile) {
 		self.logoImageView = [Utils imageViewFromPDF:logoFile];
 	} else {
-		self.logoImageView = [Utils imageViewFromPDF:@"geode_logo"];
+		self.logoImageView = [Utils imageViewFromPDF:[Utils isSapphireDay] ? @"sapphire_logo" : @"geode_logo"];
 	}
-	//self.logoImageView = [Utils imageViewFromPDF:@"geode_logo"];
 	if (self.logoImageView) {
 		self.logoImageView.layer.cornerRadius = 50;
 		self.logoImageView.clipsToBounds = YES;
@@ -283,7 +290,7 @@
 	[self.logoImageView addGestureRecognizer:longPressGR];
 
 	self.titleLabel = [[UILabel alloc] init];
-	self.titleLabel.text = @"Geode";
+	self.titleLabel.text = [Utils isSapphireDay] ? @"Sapphire" : @"Geode";
 	self.titleLabel.textColor = [Theming getWhiteColor];
 	self.titleLabel.textAlignment = NSTextAlignmentCenter;
 	self.titleLabel.font = [UIFont systemFontOfSize:35 weight:UIFontWeightRegular];
@@ -430,14 +437,7 @@
 
 - (void)showSettings {
 	[self updatePatchStatus];
-	if (self.launchTimer != nil) {
-		[self.launchTimer invalidate];
-		self.launchTimer = nil;
-		[self.launchButton addTarget:self action:@selector(launchGame) forControlEvents:UIControlEventTouchUpInside];
-		[self.optionalTextLabel setHidden:YES];
-		self.launchButton.frame = CGRectMake(self.view.center.x - 95, CGRectGetMaxY(self.titleLabel.frame) + 15, 140, 45);
-		self.settingsButton.frame = CGRectMake(self.view.center.x + 50, CGRectGetMaxY(self.titleLabel.frame) + 15, 45, 45);
-	}
+	self.countdown = -1;
 	SettingsVC* settings = [[SettingsVC alloc] initWithNibName:nil bundle:nil];
 	settings.root = self;
 	UINavigationController* navController = [[UINavigationController alloc] initWithRootViewController:settings];
@@ -977,6 +977,7 @@
 		infoDict[@"GCSupportsControllerUserInteraction"] = @YES;
 		infoDict[@"GCSupportsGameMode"] = @YES;
 		infoDict[@"LSApplicationCategoryType"] = @"public.app-category.games";
+		infoDict[@"CADisableMinimumFrameDuration"] = @YES;
 		infoDict[@"CADisableMinimumFrameDurationOnPhone"] = @YES;
 		infoDict[@"UISupportsDocumentBrowser"] = @YES; // is this necessary? dunno
 		infoDict[@"UIFileSharingEnabled"] = @YES;

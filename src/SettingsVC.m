@@ -289,19 +289,19 @@ extern NSString *lcAppUrlScheme;
 - (NSArray*)getJITEnablerOptions {
 	NSString* tsPath = [NSString stringWithFormat:@"%@/../_TrollStore", [NSBundle mainBundle].bundlePath];
 	if (NSClassFromString(@"LCSharedUtils")) {
-		return @[ @"", @"", @"", @"", @"", @"", @"jit.jit-enabler.livecontainer".loc ];
+		return @[ @"", @"", @"", @"", @"", @"", @"jit.jit-enabler.livecontainer".loc, @"jit.jit-enabler.custom".loc ];
 	}
 	if (!access(tsPath.UTF8String, F_OK)) {
 		return @[
 			@"jit.jit-enabler.default".loc, @"jit.jit-enabler.trollstore".loc, @"jit.jit-enabler.stikjit".loc, @"jit.jit-enabler.jitstreamereb".loc, @"jit.jit-enabler.sidejit".loc,
-			@"jit.jit-enabler.sidestore".loc, @""
+			@"jit.jit-enabler.sidestore".loc, @"", @"jit.jit-enabler.custom".loc
 		];
 	} else if (@available(iOS 26.0, *)) {
-		return @[@"jit.jit-enabler.default".loc, @"", @"jit.jit-enabler.stikjit".loc, @"", @"", @"", @""];
+		return @[@"jit.jit-enabler.default".loc, @"", @"jit.jit-enabler.stikjit".loc, @"", @"", @"", @"", @"jit.jit-enabler.custom".loc];
 	} else {
 		return @[
 			@"jit.jit-enabler.default".loc, @"", @"jit.jit-enabler.stikjit".loc, @"jit.jit-enabler.jitstreamereb".loc, @"jit.jit-enabler.sidejit".loc,
-			@"jit.jit-enabler.sidestore".loc, @""
+			@"jit.jit-enabler.sidestore".loc, @"", @"jit.jit-enabler.custom".loc
 		];
 	}
 }
@@ -420,7 +420,6 @@ extern NSString *lcAppUrlScheme;
 		} custom:nil],
 		[Setting create:@"general.enable-updates".loc type:SettingTypeToggle disabled:nil visible:nil prefsKey:@"UPDATE_AUTOMATICALLY" switchTag:0 action:nil custom:nil],
 		[Setting simpleCreate:@"general.check-updates".loc type:SettingTypeButton action:^{
-			[[Utils getPrefs] setObject:@"NO" forKey:@"PATCH_CHECKSUM"];
 			if ([VerifyInstall verifyGeodeInstalled]) {
 				[[GeodeInstaller alloc] checkUpdates:_root download:YES];
 				[self dismissViewControllerAnimated:YES completion:nil];
@@ -516,7 +515,7 @@ extern NSString *lcAppUrlScheme;
 			return ![Utils isSandboxed] || [[Utils getPrefs] integerForKey:@"ENTERPRISE_MODE"];
 		} visible:nil prefsKey:nil switchTag:0 action:^{
 			UIAlertController* alert = [UIAlertController alertControllerWithTitle:@"Aspect Ratio".loc message:nil preferredStyle:[UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad ? UIAlertControllerStyleAlert : UIAlertControllerStyleActionSheet];
-			NSArray* defaultAspectOptions = @[ @"Device Native".loc, @"16:9", @"16:10", @"4:3", @"1:1", @"Custom".loc ];
+			NSArray* defaultAspectOptions = @[ @"Device Native".loc, @"16:9", @"16:10", @"4:3", @"1:1", @"jit.jit-enabler.custom".loc ];
 			for (NSInteger i = 0; i < defaultAspectOptions.count; i++) {
 				[alert addAction:[UIAlertAction actionWithTitle:defaultAspectOptions[i] style:UIAlertActionStyleDefault handler:^(UIAlertAction* _Nonnull action) {
 					NSInteger aspectX = 0;
@@ -628,7 +627,7 @@ extern NSString *lcAppUrlScheme;
 		}],
 		[Setting create:@"jit.jit-server".loc type:SettingTypeCustom disabled:nil visible:^BOOL() {
 			NSInteger val = [[Utils getPrefs] integerForKey:@"JIT_ENABLER"];
-			return val == 4 || val == 3;
+			return val == 4 || val == 3 || val == 7;
 		} prefsKey:nil switchTag:0 action:nil custom:^(UITableViewCell *cell){
 			UITextField* textField = [[UITextField alloc] initWithFrame:CGRectMake(0, 0, 200, 30)];
 			textField.textAlignment = NSTextAlignmentRight;
@@ -864,13 +863,18 @@ extern NSString *lcAppUrlScheme;
 									 title:[NSString stringWithFormat:@"JIT-Less Mode Test Passed!\nApp Group ID: %@\nStore: %@", [LCUtils appGroupID], [LCUtils getStoreName]]];
 						} else {
 							AppLog(@"JIT-Less test failed: %@", error);
-							return [Utils
-								showError:self
-									title:[NSString stringWithFormat:@"The test library has failed to load. This means your certificate may be having issue. Please try to: 1. "
-																	 @"Reopen %@; 2. Refresh all apps in %@; 3. Tap Refresh Certificate from %@ and try again.\n\nIf you imported certificate, "
-																	 @"please ensure the certificate is valid, and it is NOT an enterprise certificate.",
-																	 [LCUtils getStoreName], [LCUtils getStoreName], [LCUtils getStoreName]]
-									error:nil];
+							if (![[LCUtils getStoreName] isEqualToString:@"Unknown"]) {
+								return [Utils showError:self title:[NSString stringWithFormat:@"The test library has failed to load. This means your certificate may be having issue. Please try to: 1. "
+										@"Reopen %@; 2. Refresh all apps in %@; 3. Tap Refresh Certificate from %@ and try again.\n\nIf you imported certificate, "
+										@"please ensure the certificate is valid, and it is NOT an enterprise certificate.",
+										[LCUtils getStoreName], [LCUtils getStoreName], [LCUtils getStoreName]]
+										error:nil];
+							} else {
+								return [Utils showError:self title:@"The test library has failed to load. This means your certificate may be having issue. Please try to: 1. "
+										@"Make sure the certificate is valid and not expired/revoked; 2. Make sure the certificate is the same one used as the app; 3. Resign the app with a new certificate and import that certificate.\n\nAdditionally, please ensure the certificate is valid, and it is NOT a distribution/enterprise certificate."
+										error:nil];
+
+							}
 						}
 					}];
 				}];
@@ -947,6 +951,17 @@ extern NSString *lcAppUrlScheme;
 			[alert addAction:okAction];
 			[alert addAction:cancelAction];
 			[self presentViewController:alert animated:YES completion:nil];
+		} custom:nil],
+		// TODO LATER: add support for enterprise mode and jb
+		[Setting create:@"Download Latest Resources" type:SettingTypeButton disabled:^BOOL(){
+			return ![Utils isSandboxed] || ![Utils isDevCert];
+		} visible:nil prefsKey:nil switchTag:0 action:^{
+			if ([VerifyInstall verifyGeodeInstalled]) {
+				[[GeodeInstaller alloc] downloadResource:_root ignoreRoot:NO];
+				[self dismissViewControllerAnimated:YES completion:nil];
+			} else {
+				[Utils showError:_root title:@"general.check-updates.error".loc error:nil];
+			}
 		} custom:nil]
 	];
 	NSArray<Setting*>* about = @[
@@ -1017,6 +1032,7 @@ extern NSString *lcAppUrlScheme;
 		[Setting create:@"advanced.dev-mode".loc.loc type:SettingTypeToggle disabled:nil visible:nil prefsKey:@"DEVELOPER_MODE" switchTag:2 action:nil custom:nil],
 		[Setting create:@"developer.completedsetup".loc.loc type:SettingTypeToggle disabled:nil visible:nil prefsKey:@"CompletedSetup" switchTag:6 action:nil custom:nil],
 		[Setting create:@"developer.webserver".loc.loc type:SettingTypeToggle disabled:nil visible:nil prefsKey:@"WEB_SERVER" switchTag:12 action:nil custom:nil],
+		[Setting create:@"Wait for Debugger".loc.loc type:SettingTypeToggle disabled:nil visible:nil prefsKey:@"WAIT_DEBUGGER" switchTag:27 action:nil custom:nil],
 		[Setting create:@"Force Patching".loc.loc type:SettingTypeToggle disabled:nil visible:nil prefsKey:@"FORCE_PATCHING" switchTag:14 action:nil custom:nil],
 		[Setting create:@"Don't patch on Safe Mode".loc.loc type:SettingTypeToggle disabled:nil visible:nil prefsKey:@"DONT_PATCH_SAFEMODE" switchTag:15 action:nil custom:nil],
 		[Setting create:@"Force Enterprise Mode".loc.loc type:SettingTypeToggle disabled:nil visible:nil prefsKey:@"FORCE_ENTERPRISE" switchTag:17 action:nil custom:nil],
@@ -1108,6 +1124,16 @@ extern NSString *lcAppUrlScheme;
 				[Utils showNotice:self title:@"Original Binary restored!"];
 			}
 		} custom:nil],
+		[Setting simpleCreate:@"Export Binary".loc type:SettingTypeButton action:^{
+			UIActivityViewController* activityViewController = [[UIActivityViewController alloc] initWithActivityItems:@[ [bundlePath URLByAppendingPathComponent:@"GeometryJump"] ] applicationActivities:nil];
+			// not sure if this is even necessary because ive never seen anyone complain about app logs
+			if ([UIDevice currentDevice].userInterfaceIdiom == UIUserInterfaceIdiomPad) {
+				activityViewController.popoverPresentationController.sourceRect = CGRectMake(CGRectGetMidX(self.view.bounds), CGRectGetMidY(self.view.bounds), 0, 0);
+				activityViewController.popoverPresentationController.permittedArrowDirections = 0;
+			}
+			activityViewController.popoverPresentationController.sourceView = self.view;
+			[self presentViewController:activityViewController animated:YES completion:nil];
+		} custom:nil],
 		[Setting simpleCreate:@"Clear App Logs".loc type:SettingTypeButton action:^{
 			// Clear App Log
 			[LogUtils clearLogs:YES];
@@ -1136,6 +1162,7 @@ extern NSString *lcAppUrlScheme;
 				infoDict[@"GCSupportsControllerUserInteraction"] = @YES;
 				infoDict[@"GCSupportsGameMode"] = @YES;
 				infoDict[@"LSApplicationCategoryType"] = @"public.app-category.games";
+				infoDict[@"CADisableMinimumFrameDuration"] = @YES;
 				infoDict[@"CADisableMinimumFrameDurationOnPhone"] = @YES;
 				infoDict[@"UISupportsDocumentBrowser"] = @YES; // is this necessary? dunno
 				infoDict[@"UIFileSharingEnabled"] = @YES;
@@ -1581,6 +1608,9 @@ extern NSString *lcAppUrlScheme;
 		break;
 	case 26:
 		[Utils toggleKey:@"HELPER_IPA_DOCS"];
+		break;
+	case 27:
+		[Utils toggleKey:@"WAIT_DEBUGGER"];
 		break;
 	}
 }
